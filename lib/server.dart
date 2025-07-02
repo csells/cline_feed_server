@@ -12,21 +12,20 @@ import 'src/generated/endpoints.dart';
 // configuring Relic (Serverpod's web-server), or need custom setup work.
 
 void run(List<String> args) async {
-  // Initialize blog post cache before starting server
-  print('Starting Cline Feed Server...');
-  final scraper = BlogScraper();
-  await scraper.initializeCache();
-  
   // Initialize Serverpod and connect it with your generated code.
   final pod = Serverpod(args, Protocol(), Endpoints());
+
+  // Initialize blog post cache before starting server
+  final scraper = BlogScraper();
+  await scraper.initializeCache(true); // Enable verbose logging during startup
 
   // Setup a default page at the web root.
   pod.webServer.addRoute(RouteRoot(), '/');
   pod.webServer.addRoute(RouteRoot(), '/index.html');
-  
+
   // Setup ATOM feed route
   pod.webServer.addRoute(RouteFeed(), '/atom.xml');
-  
+
   // Serve all files in the /static directory.
   pod.webServer.addRoute(
     RouteStaticDirectory(serverDirectory: 'static', basePath: '/'),

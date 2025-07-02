@@ -26,26 +26,39 @@ class BlogPost {
 class BlogScraper {
   static const String _baseUrl = 'https://cline.bot';
   static const String _blogUrl = '$_baseUrl/blog';
-  
+
   // In-memory cache
   final Map<String, BlogPost> _cache = {};
   DateTime? _lastCacheUpdate;
   static const Duration _cacheUpdateInterval = Duration(hours: 1);
-  
+  bool _verbose = false;
+
   // Singleton pattern
   static final BlogScraper _instance = BlogScraper._internal();
   factory BlogScraper() => _instance;
   BlogScraper._internal();
 
   /// Initialize the cache on startup with full content
-  Future<void> initializeCache() async {
-    print('Initializing blog post cache...');
+  Future<void> initializeCache([bool verbose = false]) async {
+    _verbose = verbose;
+    _log('Initializing blog post cache...');
     try {
       await _updateCache(isInitialLoad: true);
-      print('Cache initialization completed successfully with ${_cache.length} posts');
+      _log(
+          'Cache initialization completed successfully with ${_cache.length} posts');
     } catch (e) {
-      print('Failed to initialize cache: $e');
+      _log('Failed to initialize cache: $e', isError: true);
       rethrow;
+    }
+  }
+
+  void _log(String message, {bool isError = false}) {
+    if (_verbose || isError) {
+      if (isError) {
+        stderr.writeln('[BlogScraper ERROR] $message');
+      } else {
+        stdout.writeln('[BlogScraper] $message');
+      }
     }
   }
 
@@ -53,12 +66,12 @@ class BlogScraper {
   Future<List<BlogPost>> scrapeBlogPosts() async {
     // Check if cache needs updating (hourly)
     final now = DateTime.now();
-    if (_lastCacheUpdate == null || 
+    if (_lastCacheUpdate == null ||
         now.difference(_lastCacheUpdate!).compareTo(_cacheUpdateInterval) > 0) {
       try {
         await _updateCache();
       } catch (e) {
-        print('Error updating cache: $e');
+        _log('Error updating cache: $e', isError: true);
         // Continue with existing cache
       }
     }
@@ -66,22 +79,24 @@ class BlogScraper {
     // Return cached posts sorted by publish date (newest first)
     final posts = _cache.values.toList()
       ..sort((a, b) => b.publishDate.compareTo(a.publishDate));
-    
+
     return posts.take(10).toList();
   }
 
   /// Update cache with new posts only
   Future<void> _updateCache({bool isInitialLoad = false}) async {
     if (isInitialLoad) {
-      print('Fetching blog post list...');
+      _log('Fetching blog post list...');
     }
-    
+
     try {
       final response = await http.get(
         Uri.parse(_blogUrl),
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+          'User-Agent':
+              'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+          'Accept':
+              'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
           'Accept-Language': 'en-US,en;q=0.5',
           'Accept-Encoding': 'identity',
           'Connection': 'keep-alive',
@@ -90,7 +105,8 @@ class BlogScraper {
       );
 
       if (response.statusCode != 200) {
-        throw HttpException('Failed to fetch blog page: ${response.statusCode}');
+        throw HttpException(
+            'Failed to fetch blog page: ${response.statusCode}');
       }
 
       // Handle encoding properly
@@ -103,25 +119,27 @@ class BlogScraper {
 
       await _parseAndCachePosts(htmlContent, isInitialLoad: isInitialLoad);
       _lastCacheUpdate = DateTime.now();
-      
+
       if (!isInitialLoad) {
-        print('Cache updated: ${_cache.length} total posts');
+        _log('Cache updated: ${_cache.length} total posts');
       }
     } catch (e) {
       if (isInitialLoad) {
-        print('Error during initial cache load: $e');
+        _log('Error during initial cache load: $e', isError: true);
       }
       rethrow;
     }
   }
 
-  Future<void> _parseAndCachePosts(String htmlContent, {bool isInitialLoad = false}) async {
+  Future<void> _parseAndCachePosts(String htmlContent,
+      {bool isInitialLoad = false}) async {
     final document = html_parser.parse(htmlContent);
     final foundPosts = <BlogPost>[];
 
     // Look for blog post articles or cards
-    final articleElements = document.querySelectorAll('article, .post, .blog-post, [class*="post"], [class*="article"]');
-    
+    final articleElements = document.querySelectorAll(
+        'article, .post, .blog-post, [class*="post"], [class*="article"]');
+
     if (articleElements.isEmpty) {
       // If no standard article elements found, look for links that might be blog posts
       final linkElements = document.querySelectorAll('a[href*="/blog/"]');
@@ -129,19 +147,19 @@ class BlogScraper {
         final href = link.attributes['href'];
         if (href != null && href != '/blog' && href != '/blog/') {
           final url = _resolveUrl(href);
-          
+
           // Skip if already cached
           if (_cache.containsKey(url)) {
             if (isInitialLoad) {
-              print('Skipping cached post: ${link.text.trim()}');
+              // Skipping cached post (verbose logging disabled)
             }
             continue;
           }
-          
+
           if (isInitialLoad) {
-            print('Processing new post: ${link.text.trim()}');
+            // Processing new post (verbose logging disabled)
           }
-          
+
           final post = await _extractPostFromLink(link, href);
           if (post != null) {
             foundPosts.add(post);
@@ -150,32 +168,25 @@ class BlogScraper {
       }
     } else {
       // Process standard article elements
-      int processed = 0;
+      // Process standard article elements
       for (final article in articleElements) {
         // Try to find link to determine URL
         final linkElement = article.querySelector('a[href]');
         final href = linkElement?.attributes['href'];
         if (href != null) {
           final url = _resolveUrl(href);
-          
+
           // Skip if already cached
           if (_cache.containsKey(url)) {
             if (isInitialLoad) {
-              final titleElement = article.querySelector('h1, h2, h3, h4, .title, [class*="title"]');
-              final title = titleElement?.text.trim() ?? 'Untitled Post';
-              print('Skipping cached post: $title');
+              // Skipping cached post
             }
             continue;
           }
         }
-        
-        if (isInitialLoad) {
-          processed++;
-          final titleElement = article.querySelector('h1, h2, h3, h4, .title, [class*="title"]');
-          final title = titleElement?.text.trim() ?? 'Untitled Post';
-          print('Processing new post ($processed): $title');
-        }
-        
+
+        // Processing new post (verbose logging disabled)
+
         final post = await _extractPostFromArticle(article);
         if (post != null) {
           foundPosts.add(post);
@@ -187,37 +198,42 @@ class BlogScraper {
     for (final post in foundPosts) {
       _cache[post.url] = post;
     }
-    
+
     if (isInitialLoad) {
-      print('Added ${foundPosts.length} new posts to cache');
+      _log('Added ${foundPosts.length} new posts to cache');
     } else if (foundPosts.isNotEmpty) {
-      print('Found ${foundPosts.length} new posts');
+      _log('Found ${foundPosts.length} new posts');
     }
   }
 
   Future<BlogPost?> _extractPostFromArticle(Element article) async {
     try {
       // Try to find title
-      final titleElement = article.querySelector('h1, h2, h3, h4, .title, [class*="title"]');
+      final titleElement =
+          article.querySelector('h1, h2, h3, h4, .title, [class*="title"]');
       final title = titleElement?.text.trim() ?? 'Untitled Post';
 
       // Try to find link
-      final linkElement = article.querySelector('a[href]') ?? titleElement?.querySelector('a[href]');
+      final linkElement = article.querySelector('a[href]') ??
+          titleElement?.querySelector('a[href]');
       final href = linkElement?.attributes['href'];
       if (href == null) return null;
 
       final url = _resolveUrl(href);
 
       // Try to find excerpt
-      final excerptElement = article.querySelector('p, .excerpt, .summary, [class*="excerpt"], [class*="summary"]');
+      final excerptElement = article.querySelector(
+          'p, .excerpt, .summary, [class*="excerpt"], [class*="summary"]');
       final excerpt = excerptElement?.text.trim() ?? 'No excerpt available';
 
       // Try to find date
-      final dateElement = article.querySelector('time, .date, [class*="date"], [datetime]');
+      final dateElement =
+          article.querySelector('time, .date, [class*="date"], [datetime]');
       final publishDate = _parseDate(dateElement);
 
       // Try to find author
-      final authorElement = article.querySelector('.author, [class*="author"], .by, [class*="by"]');
+      final authorElement = article
+          .querySelector('.author, [class*="author"], .by, [class*="by"]');
       final author = authorElement?.text.trim() ?? 'Cline Team';
 
       // Fetch full content from the article URL
@@ -232,7 +248,7 @@ class BlogScraper {
         author: author,
       );
     } catch (e) {
-      print('Error extracting post from article: $e');
+      _log('Error extracting post from article: $e', isError: true);
       return null;
     }
   }
@@ -246,7 +262,8 @@ class BlogScraper {
 
       // Look for excerpt in nearby elements
       final parent = link.parent;
-      final excerpt = parent?.querySelector('p')?.text.trim() ?? 'No excerpt available';
+      final excerpt =
+          parent?.querySelector('p')?.text.trim() ?? 'No excerpt available';
 
       // Look for date in nearby elements
       final dateElement = parent?.querySelector('time, .date, [class*="date"]');
@@ -264,7 +281,7 @@ class BlogScraper {
         author: 'Cline Team',
       );
     } catch (e) {
-      print('Error extracting post from link: $e');
+      _log('Error extracting post from link: $e', isError: true);
       return null;
     }
   }
@@ -337,8 +354,10 @@ class BlogScraper {
       final response = await http.get(
         Uri.parse(articleUrl),
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+          'User-Agent':
+              'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+          'Accept':
+              'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
           'Accept-Language': 'en-US,en;q=0.5',
           'Accept-Encoding': 'identity',
           'Connection': 'keep-alive',
@@ -347,7 +366,8 @@ class BlogScraper {
       );
 
       if (response.statusCode != 200) {
-        print('Failed to fetch article content from $articleUrl: ${response.statusCode}');
+        _log(
+            'Failed to fetch article content from $articleUrl: ${response.statusCode}', isError: true);
         return 'Failed to load full content.';
       }
 
@@ -360,7 +380,7 @@ class BlogScraper {
       }
 
       final document = html_parser.parse(htmlContent);
-      
+
       // Try different selectors to find the main content
       final contentSelectors = [
         'article .prose', // Common blog content wrapper
@@ -387,14 +407,24 @@ class BlogScraper {
 
       // Remove unwanted elements like navigation, ads, etc.
       final unwantedSelectors = [
-        'nav', '.navigation', '.nav',
-        '.sidebar', '.aside',
-        '.advertisement', '.ads', '.ad',
-        '.social-share', '.share',
-        '.comments', '.comment',
-        '.related-posts', '.related',
-        'script', 'style',
-        '.header', '.footer',
+        'nav',
+        '.navigation',
+        '.nav',
+        '.sidebar',
+        '.aside',
+        '.advertisement',
+        '.ads',
+        '.ad',
+        '.social-share',
+        '.share',
+        '.comments',
+        '.comment',
+        '.related-posts',
+        '.related',
+        'script',
+        'style',
+        '.header',
+        '.footer',
       ];
 
       for (final selector in unwantedSelectors) {
@@ -403,11 +433,12 @@ class BlogScraper {
 
       // Extract HTML content while preserving structure
       String content = contentElement.innerHtml;
-      
+
       // Clean up excessive whitespace but preserve HTML structure
-      content = content.replaceAll(RegExp(r'\n\s*\n\s*\n'), '\n\n'); // Collapse multiple empty lines
+      content = content.replaceAll(
+          RegExp(r'\n\s*\n\s*\n'), '\n\n'); // Collapse multiple empty lines
       content = content.trim();
-      
+
       // If content is too short, something might be wrong
       if (content.length < 100) {
         return 'Could not extract meaningful content from the article.';
@@ -415,7 +446,7 @@ class BlogScraper {
 
       return content;
     } catch (e) {
-      print('Error fetching full content from $articleUrl: $e');
+      _log('Error fetching full content from $articleUrl: $e', isError: true);
       return 'Error loading full content.';
     }
   }

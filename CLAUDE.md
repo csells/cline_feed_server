@@ -15,7 +15,7 @@ This is a Serverpod-based Dart server that provides an ATOM feed service for the
 - `lib/src/web/routes/feed.dart` - HTTP route handler for feed endpoints
 
 **Feed Endpoints:**
-- `/feed.xml`, `/atom.xml`, `/blog/feed.xml` - All serve the same ATOM feed
+- `/atom.xml` - Serves the ATOM feed
 
 **Data Flow:**
 1. HTTP request to feed endpoint
@@ -55,6 +55,18 @@ dart test --tags integration
 serverpod generate
 ```
 
+**Dependencies:**
+```bash
+# Get dependencies
+dart pub get
+
+# Analyze code
+dart analyze
+
+# Format code
+dart format .
+```
+
 ## Database & Services
 
 - **PostgreSQL**: Development on port 8090, Test on port 9090
@@ -70,6 +82,8 @@ serverpod generate
 - Falls back to scanning `a[href*="/blog/"]` links
 - Extracts title, URL, excerpt, publish date, and author
 - Returns top 10 most recent posts
+- Implements singleton pattern with in-memory caching (1-hour cache duration)
+- Cache is initialized on server startup and refreshed automatically
 
 **ATOM Feed Compliance:**
 - Follows RFC 4287 specification

@@ -20,8 +20,10 @@ class RouteFeed extends Route {
       final atomFeed = generator.generateAtomFeed(posts);
 
       // Set response headers
-      request.response.headers.contentType = ContentType('application', 'atom+xml', charset: 'utf-8');
-      request.response.headers.add('Cache-Control', 'public, max-age=3600'); // Cache for 1 hour
+      request.response.headers.contentType =
+          ContentType('application', 'atom+xml', charset: 'utf-8');
+      request.response.headers
+          .add('Cache-Control', 'public, max-age=3600'); // Cache for 1 hour
       request.response.headers.add('Access-Control-Allow-Origin', '*');
       request.response.headers.add('Access-Control-Allow-Methods', 'GET');
 
@@ -33,12 +35,12 @@ class RouteFeed extends Route {
     } catch (e) {
       // Log error and return 500
       session.log('Error generating feed: $e', level: LogLevel.error);
-      
+
       request.response.statusCode = HttpStatus.internalServerError;
       request.response.headers.contentType = ContentType.text;
       request.response.write('Error generating feed: $e');
       await request.response.close();
-      
+
       return true;
     }
   }

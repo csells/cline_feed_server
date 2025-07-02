@@ -1,7 +1,7 @@
 name: cline_feed_server
-description: Starting point for a Serverpod server.
-# version: 1.0.0
-# homepage: https://www.example.com
+description: A Serverpod server for generating Atom feeds for Cline's blog.
+version: 0.1.0
+homepage: https://github.com/cline/cline_feed_server
 
 environment:
   sdk: '>=3.5.0 <4.0.0'

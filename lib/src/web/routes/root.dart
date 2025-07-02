@@ -14,11 +14,11 @@ class RouteRoot extends Route {
       final file = File('web/static/index.html');
       if (await file.exists()) {
         final content = await file.readAsString();
-        
+
         request.response.headers.contentType = ContentType.html;
         request.response.write(content);
         await request.response.close();
-        
+
         return true;
       } else {
         // Fallback to a simple HTML response if file doesn't exist
@@ -32,7 +32,7 @@ class RouteRoot extends Route {
 <li><a href="/blog/feed.xml">/blog/feed.xml</a></li></ul></body></html>
         ''');
         await request.response.close();
-        
+
         return true;
       }
     } catch (e) {
