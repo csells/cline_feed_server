@@ -12,6 +12,8 @@ dependencies:
   html: ^0.15.5
   xml: ^6.5.0
   intl: ^0.20.2
+  shelf: ^1.4.0
+  shelf_router: ^1.1.0
 
 dev_dependencies:
   lints: '>=3.0.0 <7.0.0'
