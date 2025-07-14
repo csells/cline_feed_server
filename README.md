@@ -1,3 +1,6 @@
+# Cline Blog Atom Feed
+[Get your red hot cline.bot/blog news right here!](https://cline-feed-server-vxab2vmxea-uc.a.run.app/atom.xml)
+
 # Cline Blog Feed Server
 
 A Serverpod-based Dart server that provides ATOM feeds for the [Cline AI coding
